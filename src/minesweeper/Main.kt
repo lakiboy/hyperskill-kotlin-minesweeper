@@ -6,7 +6,7 @@ import kotlin.random.Random
 
 private const val MINE = -1
 private const val FREE = 0
-private const val SIZE = 9
+private const val SIZE = 5
 
 class Game(private val size: Int, private val minesCount: Int) {
     private val cells = Array(size) { IntArray(size) }
@@ -22,6 +22,7 @@ class Game(private val size: Int, private val minesCount: Int) {
     val completed get() = gameOver || markedAllMines || openedAllFree
 
     var gameOver = false
+        private set
 
     private var Field.value
         get() = cells[x][y]
@@ -33,20 +34,26 @@ class Game(private val size: Int, private val minesCount: Int) {
 
     private val Field.free get() = value == FREE
 
-    private fun Field.addMineNear() = ++value
+    private val Field.label get() = when(this) {
+        in marked -> "*"
+        in opened -> if (free) "/" else value.toString()
+        else -> if (gameOver && mine) "X" else "."
+    }
+
+    private fun Field.addNearMine() = ++value
 
     private fun generateMines(exclude: Field) {
         repeat(minesCount) {
             // Find free field.
             var field: Field
             do {
-                field = Field(Random.nextInt(0, size), Random.nextInt(0, size))
+                field = Field.random()
             } while (field == exclude || field.mine)
 
             // Add mines.
             field.run {
                 mine = true
-                neighbors.filterNot { it.mine }.forEach { it.addMineNear() }
+                neighbours.filterNot { it.mine }.forEach { it.addNearMine() }
             }
         }
     }
@@ -70,8 +77,7 @@ class Game(private val size: Int, private val minesCount: Int) {
         opened.add(field)
 
         if (field.free) {
-            field.neighbors
-                .asSequence()
+            field.neighbours
                 .filterNot { it in opened }
                 .filterNot { it.mine }
                 .forEach { open(it) }
@@ -88,13 +94,7 @@ class Game(private val size: Int, private val minesCount: Int) {
 
     override fun toString(): String {
         val lines = cells.mapIndexed { x: Int, row: IntArray ->
-            val line = row.mapIndexed { y, _ ->
-                when (val field = Field(x, y)) {
-                    in marked -> "*"
-                    in opened -> if (field.free) "/" else field.value
-                    else -> if (gameOver && field.mine) "X" else "."
-                }
-            }
+            val line = row.mapIndexed { y, _ -> Field(x, y).label }
             "${x + 1}|${line.joinToString("")}|"
         }
 
@@ -113,12 +113,16 @@ class Game(private val size: Int, private val minesCount: Int) {
 data class Field(val x: Int, val y: Int) {
     constructor(x: String, y: String) : this(x.toInt() - 1, y.toInt() - 1)
 
-    val neighbors get(): List<Field> = mutableListOf<Field>().apply {
+    val neighbours get(): List<Field> = mutableListOf<Field>().apply {
         for (i in max(0, x - 1)..min(x + 1, SIZE - 1)) {
             for (j in max(0, y - 1)..min(y + 1, SIZE - 1)) {
                 add(Field(i, j))
             }
         }
+    }
+
+    companion object {
+        fun random() = Field(Random.nextInt(0, SIZE), Random.nextInt(0, SIZE))
     }
 }
 
